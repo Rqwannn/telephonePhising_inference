@@ -8,7 +8,7 @@ import torchaudio.transforms as T
 import torchaudio
 from torchaudio.transforms import Resample
 
-def process_audio_files(data, labels):
+def process_audio_files(data):
     processed_data = []
 
     waveform, sample_rate = torchaudio.load(data)
@@ -22,10 +22,10 @@ def process_audio_files(data, labels):
         waveform = torch.mean(waveform, dim=0, keepdim=True)
 
     processed_data.append({
-        'array': waveform.squeeze().numpy(),
+        # 'array': waveform.squeeze().numpy(),
+        'array': waveform,
         'sampling_rate': sample_rate,
         'file': data,
-        'category': labels
     })
 
     return processed_data
@@ -62,12 +62,16 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
 
     for audio_item in denoised_data:
         try:
-            category = audio_item['category']
             audio_path = audio_item['file']
             audio_array = audio_item['array']
             sample_rate = audio_item['sampling_rate']
 
-            diarization_result = diarization_pipeline(audio_path)
+            diarization_input = {
+                "waveform": audio_array,
+                "sample_rate": sample_rate
+            }
+
+            diarization_result = diarization_pipeline(diarization_input)
             
             speaker_segments = []
             transcription_segments = []
@@ -76,7 +80,7 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
             for turn, _, speaker in diarization_result.itertracks(yield_label=True):
                 start_frame = int(turn.start * sample_rate)
                 end_frame = int(turn.end * sample_rate)
-                segment_audio = torch.tensor(audio_array[start_frame:end_frame]).unsqueeze(0)
+                segment_audio = torch.tensor(audio_array.squeeze().numpy()[start_frame:end_frame]).unsqueeze(0)
 
                 input_features = whisper_processor(
                     segment_audio.squeeze(), sampling_rate=sample_rate, return_tensors="pt"
@@ -115,4 +119,4 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
 
     print(f"{total_time}")
     
-    return transcription_data, total_time
+    return transcription_data

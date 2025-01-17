@@ -3,8 +3,14 @@ from transformers import AutoTokenizer, BertForSequenceClassification
 
 def load_model_from_huggingface():
     repo_name = os.getenv("REPO_ID")   
-    tokenizer = AutoTokenizer.from_pretrained(f"{repo_name}/tokenizer")    
-    model = BertForSequenceClassification.from_pretrained(f"{repo_name}/models")
+    tokenizer = AutoTokenizer.from_pretrained(
+        f"{repo_name}",
+        subfolder="tokenizer"
+    )    
+    model = BertForSequenceClassification.from_pretrained(
+        f"{repo_name}",
+        subfolder="models"
+    )
     
     return tokenizer, model
 
@@ -21,6 +27,7 @@ def tokenize_with_special_tokens_and_overlap(text, tokenizer, max_length=512, ov
     attention_masks = []
 
     for idx, chunk in enumerate(chunks):
+
         if idx == 0:
             chunk_ids = (
                 tokenizer.encode("[CHUNK_START]", add_special_tokens=False) +
@@ -44,6 +51,3 @@ def tokenize_with_special_tokens_and_overlap(text, tokenizer, max_length=512, ov
         attention_masks.append(attention_mask)
 
     return input_ids, attention_masks
-
-def process_dataset_with_overlap(data, max_length=512, overlap=50):
-    return tokenize_with_special_tokens_and_overlap(data, max_length=max_length, overlap=overlap) 
