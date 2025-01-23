@@ -5,30 +5,6 @@ from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from pyannote.audio import Pipeline
 import os
 import torchaudio.transforms as T
-import torchaudio
-from torchaudio.transforms import Resample
-
-def process_audio_files(data):
-    processed_data = []
-
-    waveform, sample_rate = torchaudio.load(data)
-
-    if sample_rate != 16000:
-        resample = Resample(orig_freq=sample_rate, new_freq=16000)
-        waveform = resample(waveform)
-        sample_rate = 16000
-
-    if waveform.shape[0] > 1:
-        waveform = torch.mean(waveform, dim=0, keepdim=True)
-
-    processed_data.append({
-        # 'array': waveform.squeeze().numpy(),
-        'array': waveform,
-        'sampling_rate': sample_rate,
-        'file': data,
-    })
-
-    return processed_data
 
 def load_whisper():
     whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v2")

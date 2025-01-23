@@ -6,6 +6,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from huggingface_hub import HfApi, upload_folder
 from utils.tokenizer import *
 from utils.transkrip import *
+from utils.noise_removal import *
 
 from dotenv import load_dotenv
 import os
@@ -42,7 +43,6 @@ class Inference(Resource):
             tokenizer, model = load_model_from_huggingface()
             
             processed_data = process_audio_files(file)
-
         
             transcription_data = process_and_transcribe_audio_with_diarization(processed_data)
 

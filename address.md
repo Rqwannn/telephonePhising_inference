@@ -21,7 +21,7 @@ RESPONSE BODY: (SUCCESS)
 ```json
 {
     "message": "Prediction successful",
-    "confidence_scores": [0.90, 0.59, 0.20, , 0.72, 0.33],
+    "confidence_scores": [0.90, 0.59, 0.20, 0.72, 0.33],
     "predicted_labels": ["1_p_p_o", "2_p_b_k_k", "3_p_i_i", "4_p_j_b_j", "5_p_h", "6_n_p"],
     "transcription": "Ini Transcription",
 }
