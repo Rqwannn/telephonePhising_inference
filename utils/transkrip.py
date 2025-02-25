@@ -1,17 +1,20 @@
 import re
-import time
 import torch
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from transformers import WhisperProcessor, WhisperForConditionalGeneration, pipeline
 from pyannote.audio import Pipeline
 import os
 import torchaudio.transforms as T
 
 def load_whisper():
-    whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v2")
-    whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v2")
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+    whisper_processor = WhisperProcessor.from_pretrained(os.getenv("WHISPER_ID"))
+    whisper_model = WhisperForConditionalGeneration.from_pretrained(os.getenv("WHISPER_ID"))
     whisper_forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language="indonesian", task="transcribe")
 
-    return whisper_processor, whisper_model, whisper_forced_decoder_ids
+    whisper_model.to(device)
+
+    return whisper_processor, whisper_model, device, whisper_forced_decoder_ids
 
 def load_diarization():
     pipeline = Pipeline.from_pretrained(
@@ -29,9 +32,7 @@ def remove_repeated_text(text):
     return text
 
 def process_and_transcribe_audio_with_diarization(denoised_data):
-    start_time = time.time()
-
-    whisper_processor, whisper_model, whisper_forced_decoder_ids = load_whisper()
+    whisper_processor, whisper_model, device, whisper_forced_decoder_ids = load_whisper()
     diarization_pipeline = load_diarization()
     
     transcription_data = []
@@ -60,9 +61,15 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
 
                 input_features = whisper_processor(
                     segment_audio.squeeze(), sampling_rate=sample_rate, return_tensors="pt"
-                ).input_features
+                ).input_features.to(device)
 
-                predicted_ids = whisper_model.generate(input_features, forced_decoder_ids=whisper_forced_decoder_ids)
+                with torch.no_grad():
+                    predicted_ids = whisper_model.generate(
+                        input_features, 
+                        forced_decoder_ids=whisper_forced_decoder_ids,
+                        temperature=1.0
+                    )
+                
                 segment_transcription = whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
                
                 cleaned_segment_transcription = remove_repeated_text(segment_transcription)
@@ -76,12 +83,6 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
                     "speaker": speaker
                 })
 
-            full_transcription = " ".join(transcription_text)
-
-            print(full_transcription + "\n")
-
-            print(" ".join(transcription_segments).strip() + "\n")
-
             transcription_data.append({
                 'transcription_segments': " ".join(transcription_segments).strip(),
                 'speaker_segments': speaker_segments
@@ -89,10 +90,5 @@ def process_and_transcribe_audio_with_diarization(denoised_data):
 
         except Exception as e:
             print(f"Error processing file {audio_path}: {str(e)}")
-
-    end_time = time.time()
-    total_time = end_time - start_time
-
-    print(f"{total_time}")
     
     return transcription_data

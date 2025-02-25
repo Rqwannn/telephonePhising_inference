@@ -3,35 +3,8 @@ import numpy as np
 from scipy import signal
 from torchaudio.transforms import Resample
 import torch
-
-def load_and_process_audio(file_path):
-    waveform, sample_rate = torchaudio.load(file_path)
-
-    if sample_rate != 16000:
-        resample = Resample(orig_freq=sample_rate, new_freq=16000)
-        waveform = resample(waveform)
-        sample_rate = 16000
-
-    if waveform.shape[0] > 1:
-        waveform = torch.mean(waveform, dim=0, keepdim=True)
-
-    return waveform, sample_rate
-
-# def reduce_noise(waveform, sample_rate):
-#     audio_np = waveform.numpy().flatten()
-
-#     noise_sample = audio_np[:int(len(audio_np) * 0.1)]
-#     noise_profile = np.mean(np.abs(noise_sample))
-
-#     f, t, Zxx = signal.stft(audio_np, fs=sample_rate, nperseg=2048)
-#     noise_magnitude = np.mean(np.abs(Zxx[:, :10]), axis=1)
-#     clean_magnitude = np.maximum(0, np.abs(Zxx) - noise_magnitude[:, np.newaxis] * 2)
-#     Zxx_clean = clean_magnitude * np.exp(1j * np.angle(Zxx))
-#     _, cleaned_signal = signal.istft(Zxx_clean, fs=sample_rate)
-
-#     cleaned_waveform = torch.from_numpy(cleaned_signal).float().unsqueeze(0)
-
-#     return cleaned_waveform
+from df.enhance import enhance, load_audio, save_audio
+from df.utils import download_file
 
 def reduce_noise(waveform, sample_rate):
 
@@ -76,53 +49,50 @@ def reduce_noise(waveform, sample_rate):
     
     return cleaned_waveform
 
-# def reduce_noise(waveform, sample_rate):
+def resample_waveform(waveform, sample_rate):
+    if sample_rate != 16000:
+        resample = Resample(orig_freq=sample_rate, new_freq=16000)
+        waveform = resample(waveform)
+        sample_rate = 16000
 
-#     """
-#         Spectral Gating
+    if waveform.shape[0] > 1:
+        waveform = torch.mean(waveform, dim=0, keepdim=True)
 
-#         Audio dengan background noise konstan:
+    return waveform, sample_rate
 
-#         Rekaman kantor
-#         Audio dengan fan/AC
-#         Lingkungan dengan noise mesin
+def load_and_process_audio(file_path):
+    waveform, sample_rate = torchaudio.load(file_path)
+    waveform, sample_rate = resample_waveform(waveform, sample_rate)
 
+    return waveform, sample_rate
 
-#         Audio dengan noise frekuensi rendah:
+def load_and_reduce_audio_noise(data, model, df_state):
 
+    # Jika sample rate bukan 48k maka akan di resampling ke situ dulu
 
-#         Dengung elektronik
-#         Noise listrik
-#         Gemuruh mesin
+    audio, _ = load_audio(data, sr=df_state.sr())
+    enhanced = enhance(model, df_state, audio)
 
+    # enhanced -> Waveform
+    # df_state.sr() -> sample_rate
 
-#         Rekaman yang memiliki:
-
-
-#         Noise statis
-#         Pola frekuensi yang stabil
-#         Energi spektral rendah di beberapa wilayah
-
-#     """
-
-#     audio_np = waveform.numpy().flatten()
-#     f, t, Zxx = signal.stft(audio_np, fs=sample_rate)
+    # save_audio("enhanced3.wav", enhanced, df_state.sr())
     
-#     spectral_energy = np.abs(Zxx)**2
-#     threshold = np.percentile(spectral_energy, 10)
-    
-#     Zxx_clean = np.where(spectral_energy > threshold, Zxx, 0)
-#     _, cleaned_signal = signal.istft(Zxx_clean, fs=sample_rate)
-#     cleaned_waveform = torch.from_numpy(cleaned_signal).float().unsqueeze(0)
-    
-#     return cleaned_waveform
+    waveform, sample_rate = resample_waveform(enhanced, df_state.sr())
 
-def process_audio_files(data):
+    return waveform, sample_rate
+
+def process_audio_files(data, model=None, df_state=None):
     processed_data = []
 
     try:
-        waveform, sample_rate = load_and_process_audio(data)
-        denoised_waveform = reduce_noise(waveform, sample_rate)
+        if model is not None and df_state is not None:
+            denoised_waveform, sample_rate = load_and_reduce_audio_noise(data, model, df_state)
+        else:
+            # Denoised in here doesn't work
+
+            waveform, sample_rate = load_and_process_audio(data)
+            denoised_waveform = reduce_noise(waveform, sample_rate)
 
         processed_data.append({
             'array': denoised_waveform,

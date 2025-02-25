@@ -3,11 +3,13 @@ from flask_restful import Resource, reqparse
 from werkzeug.datastructures import FileStorage
 from sklearn.preprocessing import MultiLabelBinarizer
 
+from df.enhance import init_df
 from huggingface_hub import HfApi, upload_folder
 from utils.tokenizer import *
 from utils.transkrip import *
 from utils.noise_removal import *
 
+import time
 from dotenv import load_dotenv
 import os
 
@@ -25,6 +27,7 @@ class Inference(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('audio', type=FileStorage, location='files', required=True)
+        self.parser.add_argument('denoised', type=int, location='form', required=True)
 
         self.ALLOWED_EXTENSIONS = {'.mp3', '.wav'}
         self.labels = ['1_p_p_o', '2_p_b_k_k', '3_p_i_i', '4_p_j_b_j', '5_p_h', '6_n_p']
@@ -33,16 +36,24 @@ class Inference(Resource):
         processed_labels = [label.split(',') for label in self.labels]
         mlb.fit(processed_labels)
 
+        self.model_denoised, self.df_state, _ = init_df()
+
         self.mlb = mlb
 
     def post(self):
         try:
+            start_time = time.time()
+
             args = self.parser.parse_args()
             file = args['audio']
+            denoised = args['denoised']
 
             tokenizer, model = load_model_from_huggingface()
             
-            processed_data = process_audio_files(file)
+            if denoised == 1:
+                processed_data = process_audio_files(file, self.model_denoised, self.df_state)
+            else:
+                processed_data = process_audio_files(file)
         
             transcription_data = process_and_transcribe_audio_with_diarization(processed_data)
 
@@ -84,11 +95,15 @@ class Inference(Resource):
 
             predicted_labels_str = [str(label) for label in predicted_labels]
 
+            end_time = time.time()  
+            total_time = end_time - start_time 
+
             return {
                 "message": "Prediction successful",
                 "confidence_scores": [f'{conf * 100:.2f}%' for conf in confidence_scores],
                 "predicted_labels": predicted_labels_str,
                 "transcription": transcription_data[0]["transcription_segments"],
+                "processing_time": f"{total_time:.4f} seconds"
             }, 200
 
         except Exception as e:
