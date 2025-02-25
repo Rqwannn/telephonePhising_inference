@@ -13,7 +13,7 @@ def create_app():
     AI_API_PATH()
 
     Talisman(app, content_security_policy=None, force_https=True, strict_transport_security=True)
-    CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+    CORS(app, resources={r"/*": {"origins": "http://127.0.0.1:5500"}}, supports_credentials=True)
 
     api.init_app(app)
 
