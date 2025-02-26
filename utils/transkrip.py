@@ -31,6 +31,41 @@ def remove_repeated_text(text):
 
     return text
 
+def process_and_transcribe_audio(denoised_data):
+    whisper_processor, whisper_model, device, whisper_forced_decoder_ids = load_whisper()
+    
+    transcription_data = []
+
+    try:
+        audio_path = denoised_data['file']
+        audio_array = denoised_data['array']
+        sample_rate = denoised_data['sampling_rate']
+        
+        input_features = whisper_processor(
+            audio_array.squeeze(), sampling_rate=sample_rate, return_tensors="pt"
+        ).input_features.to(device)
+
+        with torch.no_grad():
+            predicted_ids = whisper_model.generate(
+                input_features, 
+                forced_decoder_ids=whisper_forced_decoder_ids,
+                temperature=1.0
+            )
+        
+        segment_transcription = whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+        
+        cleaned_segment_transcription = remove_repeated_text(segment_transcription)
+        cleaned_segment_transcription = re.sub(r'\s+', ' ', cleaned_segment_transcription).strip()
+
+        transcription_data.append({
+            'transcription': " ".join(cleaned_segment_transcription).strip(),
+        })
+
+    except Exception as e:
+        print(f"Error processing file {audio_path}: {str(e)}")
+        
+    return transcription_data
+
 def process_and_transcribe_audio_with_diarization(denoised_data):
     whisper_processor, whisper_model, device, whisper_forced_decoder_ids = load_whisper()
     diarization_pipeline = load_diarization()

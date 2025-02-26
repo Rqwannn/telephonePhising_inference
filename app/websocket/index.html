@@ -25,6 +25,7 @@
          
            socket.on('update value', function(msg) {
                console.log('Slider value updated');
+               console.log(msg);
                $('#' + msg.who).val(msg.data);
            });
          });
